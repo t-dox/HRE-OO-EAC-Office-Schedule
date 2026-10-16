@@ -92,6 +92,258 @@
             border-color: transparent;
         }
 
+        .opt.sel[data-s="office"] { background: var(--office); }
+        .opt.sel[data-s="remote"] { background: var(--remote); }
+        .opt.sel[data-s="mission"] { background: var(--mission); }
+        .opt.sel[data-s="leave"] { background: var(--leave); color: #000; }
+        .opt.sel[data-s="sick"] { background: var(--sick); }
+        .opt.sel[data-s="ops"] { background: var(--ops); }
+        .opt.sel[data-s="training"] { background: var(--training); }
+        .opt.sel[data-s="custom"] { background: var(--custom); }
+
+        table.board {
+            border-collapse: collapse;
+            width: 100%;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+        }
+
+        .board th,
+        .board td {
+            padding: 14px 10px;
+            text-align: center;
+            font-size: 26px;
+        }
+
+        .board th {
+            background: #1f2937;
+            color: #fff;
+            font-size: 24px;
+        }
+
+        .board th:first-child { text-align: left; }
+
+        .board td:first-child {
+            text-align: left;
+            font-weight: 600;
+            font-size: 26px;
+            padding-left: 18px;
+        }
+
+        .board tr:nth-child(2n) td {
+            background: #fafafa;
+        }
+
+        .cell {
+            display: inline-block;
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            line-height: 46px;
+        }
+
+        .cell.office { background: var(--office); }
+        .cell.remote { background: var(--remote); }
+        .cell.mission { background: var(--mission); }
+        .cell.leave { background: var(--leave); }
+        .cell.sick { background: var(--sick); }
+        .cell.ops { background: var(--ops); }
+        .cell.training { background: var(--training); }
+        .cell.custom { background: var(--custom); }
+        .cell.none { background: #e5e7eb; opacity: .5; }
+
+        .legend {
+            display: flex;
+            gap: 18px;
+            margin: 14px 0;
+            font-size: 18px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .legend .cell {
+            width: 22px;
+            height: 22px;
+            line-height: 22px;
+            border-radius: 5px;
+        }
+
+        .weeknav {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        #authGate {
+            position: fixed;
+            inset: 0;
+            background: #f4f6f8;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #authGate form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 300px;
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
+        }
+
+        .custom-notes { background: #fff; border-radius: 12px; padding: 14px 18px; margin-top: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+        .custom-notes h4 { font-size: 15px; margin-bottom: 8px; color: #374151; display: flex; align-items: center; gap: 6px; }
+        .custom-notes ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 12px 24px; font-size: 15px; color: #1f2937; }
+        .custom-notes li span { font-weight: 600; color: var(--custom); }
+    </style>
+</head>
+
+<body>
+
+    <!-- Authentication -->
+    <div id="authGate" style="display: none;">
+        <form onsubmit="checkPin(event)">
+            <h2>Office Board Login</h2>
+            <input type="password" id="pinInput" placeholder="Enter password" required>
+            <button type="submit" style="background: #1f2937; color: #fff;">Unlock</button>
+            <p id="pinError" style="color: red; font-size: 14px; display: none;">Incorrect PIN</p>
+        </form>
+    </div>
+
+    <div id="app">
+        <p class="muted">Loading...</p>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://jsiwrftddnbwxnoeobql.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_SJP_t1JMS8qx39nU4A2yAg_WzPbDU0v';
+
+        const STATUSES = {
+            office: { label: 'In Office', icon: '🏢' },
+            remote: { label: 'Teleworking', icon: '🏠' },
+            mission: { label: 'On Mission', icon: '✈️' },
+            leave: { label: 'On Leave', icon: '🌴' },
+            sick: { label: 'Sick', icon: '🤒' },
+            training: { label: 'In Training', icon: '📝' },
+            ops: { label: 'In Ops', icon: '🎧' },
+            custom: { label: 'Custom', icon: '🪐' }
+        };
+        const STATUS_ORDER = ['mission', 'remote', 'leave', 'sick', 'training', 'ops', 'office', 'custom'];
+
+        // =================================================
+
+        const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let currentWeekOffset = 0;
+        let selectedPerson = localStorage.getItem('savedPerson') || '';
+        let appData = { people: [], entries: {}, days: [], dayLabels: {} };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const isViewMode = urlParams.get('mode') === 'view';
+
+        if (localStorage.getItem('office_auth') !== '```html
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Office Board</title>
+    <!-- Load Supabase JS Client -->
+    <script src="[https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2](https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2)"></script>
+    <style>
+        :root {
+            --office: #5feb97;
+            --remote: #71a6f5;
+            --mission: #ff8b5d;
+            --leave: #fff16e;
+            --sick: #a82121;
+            --ops: #168641;
+            --training: #5d31a5;
+            --custom: #5f5f5f;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            font-family: system-ui, sans-serif;
+        }
+
+        body {
+            background: #f4f6f8;
+            padding: 16px;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 12px;
+            color: #1f2937;
+        }
+
+        select,
+        button,
+        input {
+            font-size: 16px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .day {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+        }
+
+        .day h3 {
+            font-size: 17px;
+            margin-bottom: 10px;
+        }
+
+        .opts {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .opt {
+            flex: 1;
+            min-width: 90px;
+            padding: 12px 6px;
+            text-align: center;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            background: #fff;
+            font-size: 14px;
+            transition: background 0.1s;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .opt.sel {
+            color: #fff;
+            font-weight: 600;
+            border-color: transparent;
+        }
+
         .opt.sel[data-s="office"] {
             background: var(--office);
         }
@@ -163,25 +415,11 @@
         }
 
         .cell {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-width: 46px;
+            display: inline-block;
+            width: 46px;
             height: 46px;
-            padding: 2px 6px;
             border-radius: 10px;
-            line-height: 1.1;
-        }
-
-        .cell-text {
-            font-size: 11px;
-            font-weight: 600;
-            white-space: nowrap;
-            max-width: 80px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            margin-top: 2px;
+            line-height: 46px;
         }
 
         .cell.office {
@@ -265,6 +503,38 @@
             border-radius: 12px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, .1);
         }
+
+        .custom-notes {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-top: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+        }
+
+        .custom-notes h4 {
+            font-size: 15px;
+            margin-bottom: 8px;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .custom-notes ul {
+            list-style: none;
+            padding: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 24px;
+            font-size: 15px;
+            color: #1f2937;
+        }
+
+        .custom-notes li span {
+            font-weight: 600;
+            color: var(--custom);
+        }
     </style>
 </head>
 
@@ -285,7 +555,7 @@
     </div>
 
     <script>
-        const SUPABASE_URL = 'https://jsiwrftddnbwxnoeobql.supabase.co';
+        const SUPABASE_URL = '[https://jsiwrftddnbwxnoeobql.supabase.co](https://jsiwrftddnbwxnoeobql.supabase.co)';
         const SUPABASE_KEY = 'sb_publishable_SJP_t1JMS8qx39nU4A2yAg_WzPbDU0v';
 
         const STATUSES = {
@@ -419,17 +689,6 @@
             await sb.from('entries').upsert({ person: person, date: dateStr, status: saveStatus });
         }
 
-        async function clearStatus(person, dateStr) {
-            if (appData.entries[person] && appData.entries[person][dateStr]) {
-                // Remove from UI immediately
-                delete appData.entries[person][dateStr];
-                render();
-
-                // Delete from database in the bg
-                await sb.from('entries').delete().eq('person', person).eq('date', dateStr);
-            }
-        }
-
         function changePerson(personId) {
             selectedPerson = personId;
             localStorage.setItem('savedPerson', personId);
@@ -490,6 +749,18 @@
                 });
             }
 
+            const customNotes = [];
+            appData.people.forEach(p => {
+                appData.days.forEach(d => {
+                    const raw = appData.entries[p]?.[d];
+                    if (raw?.startsWith('custom:')) {
+                        const text = raw.substring(7);
+                        const dayLabel = appData.dayLabels[d];
+                        customNotes.push(`<li><span>${p} (${dayLabel}):</span> "${text}"</li>`);
+                    }
+                });
+            });
+
             html += `
       <h1 style="${isViewMode ? 'margin-top: 0;' : 'margin-top: 24px;'}">Office Board</h1>
       <div class="legend">
@@ -500,7 +771,7 @@
         `).join('')}
       </div>
       
-<table class="board">
+      <table class="board">
         <tr>
           <th>Person</th>
           ${appData.days.map(d => `<th>${appData.dayLabels[d]}</th>`).join('')}
@@ -513,21 +784,20 @@
                 const customText = rawS?.startsWith('custom:') ? rawS.substring(7) : '';
                 const tooltip = customText || (s ? STATUSES[s].label : '');
 
-                let cellContent = '';
-                if (s) {
-                    const icon = STATUSES[s]?.icon || '';
-                    cellContent = (s === 'custom' && customText)
-                        ? `<span>${icon}</span><span class="cell-text">${customText}</span>`
-                        : icon;
-                }
-
                 return `<td>
-                <div class="cell ${s ? s : 'none'}" title="${tooltip}">${cellContent}</div>
+                <div class="cell ${s ? s : 'none'}" title="${tooltip}">${s ? STATUSES[s].icon : ''}</div>
               </td>`;
             }).join('')}
           </tr>
         `).join('')}
       </table>
+      
+      ${customNotes.length > 0 ? `
+        <div class="custom-notes">
+          <h4>🪐 Custom Notes</h4>
+          <ul>${customNotes.join('')}</ul>
+        </div>
+      ` : ''}
     `;
 
             document.getElementById('app').innerHTML = html;
