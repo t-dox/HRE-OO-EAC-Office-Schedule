@@ -19,7 +19,7 @@
   .day { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   .day h3 { font-size: 17px; margin-bottom: 10px; }
   .opts { display: flex; gap: 8px; flex-wrap: wrap; }
-  .opt { flex: 1; min-width: 90px; padding: 12px 6px; text-align: center; border: 2px solid #e5e7eb; border-radius: 10px; background: #fff; font-size: 14px; transition: background 0.1s; }
+  .opt { flex: 1; min-width: 90px; padding: 12px 6px; text-align: center; border: 2px solid #e5e7eb; border-radius: 10px; background: #fff; font-size: 14px; transition: background 0.1s; touch-action: manipulation; user-select: none; }
   .opt.sel { color: #fff; font-weight: 600; border-color: transparent; }
   .opt.sel[data-s="office"]   { background: var(--office); }
   .opt.sel[data-s="remote"]   { background: var(--remote); }
@@ -67,7 +67,6 @@
 <script>
   const SUPABASE_URL = 'https://jsiwrftddnbwxnoeobql.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_SJP_t1JMS8qx39nU4A2yAg_WzPbDU0v';
-  const OFFICE_PIN = '!3C0S?2026';
   
   const STATUSES = {
     office:   { label: 'In Office', icon: '🏢' },
@@ -77,7 +76,7 @@
     sick:     { label: 'Sick', icon: '🤒' },
     training: { label: 'In Training', icon: '📖' },
     ops:      { label: 'In Ops', icon: '🎧' },
-    custom:   { label: 'Custom', icon: '💭' }
+    custom:   { label: 'Custom', icon: '🪐' }
   };
   const STATUS_ORDER = ['mission', 'remote', 'leave', 'sick', 'training', 'ops', 'office', 'custom'];
   
@@ -100,7 +99,9 @@
 
   function checkPin(e) {
     e.preventDefault();
-    if (document.getElementById('pinInput').value === OFFICE_PIN) {
+    const input = document.getElementById('pinInput').value;
+    
+    if (btoa(input) === 'M0MwU19UMF9USDNfTTAwTiE=') {
       localStorage.setItem('office_auth', 'true');
       document.getElementById('authGate').style.display = 'none';
       initApp();
@@ -171,7 +172,7 @@
   async function updateStatus(person, dateStr, key) {
     let saveStatus = key;
     
-    // Prompt for text if custom is selected
+    // Prompt for text if custom
     if (key === 'custom') {
       const userInput = prompt('Enter your custom status:');
       if (userInput === null) return; // User clicked cancel
@@ -184,6 +185,17 @@
 
     // Save to db in the bg
     await sb.from('entries').upsert({ person: person, date: dateStr, status: saveStatus });
+  }
+
+  async function clearStatus(person, dateStr) {
+    if (appData.entries[person] && appData.entries[person][dateStr]) {
+      // Remove from UI immediately
+      delete appData.entries[person][dateStr];
+      render();
+      
+      // Delete from database in the bg
+      await sb.from('entries').delete().eq('person', person).eq('date', dateStr);
+    }
   }
 
   function changePerson(personId) {
@@ -229,14 +241,15 @@
                 const isSel = baseStatus === key;
                 let displayLabel = STATUSES[key].label;
                 
-                // Show the typed custom text on the selected button
                 if (key === 'custom' && isSel && customText) {
                   displayLabel = customText;
                 }
 
                 return `
                   <div class="opt ${isSel ? 'sel' : ''}" data-s="${key}" 
-                       onclick="updateStatus('${selectedPerson}', '${day}', '${key}')">
+                       onclick="updateStatus('${selectedPerson}', '${day}', '${key}')"
+                       ondblclick="clearStatus('${selectedPerson}', '${day}')"
+                       title="Double-click to clear">
                     ${STATUSES[key].icon}${displayLabel}
                   </div>
                 `;
