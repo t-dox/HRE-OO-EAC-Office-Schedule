@@ -365,6 +365,7 @@
         function render() {
             let html = `
       <div class="weeknav">
+        <h1>Week Selection</h1>
         <button onclick="changeWeek(-1)">◀ Prev</button>
         <button onclick="currentWeekOffset=0; changeWeek(0)">Current</button>
         <button onclick="changeWeek(1)">Next ▶</button>
@@ -373,7 +374,7 @@
 
             if (!isViewMode) {
                 html += `
-        <h1>My Status</h1>
+        <h1>Name & Status Selection</h1>
         <select onchange="changePerson(this.value)" style="margin-bottom: 16px;">
           ${appData.people.map(p => `<option value="${p}" ${p === selectedPerson ? 'selected' : ''}>${p}</option>`).join('')}
         </select>
@@ -422,7 +423,7 @@
             });
 
             html += `
-      <h1 style="${isViewMode ? 'margin-top: 0;' : 'margin-top: 24px;'}">Office Board</h1>
+      <h1 style="${isViewMode ? 'margin-top: 0;' : 'margin-top: 24px;'}">HRE-OO Office Schedule (HOOOS)</h1>
       <div class="legend">
         ${STATUS_ORDER.map(key => `
           <div style="display:flex; align-items:center; gap:6px;">
